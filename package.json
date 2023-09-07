@@ -1,0 +1,32 @@
+{
+  "name": "com.cobilas.unity.editorterminal",
+  "version": "1.0.0",
+  "description": "Pacote para unity3d que adiciona um terminal.",
+  "licensesUrl": "https://github.com/BelicusBr/com.cobilas.unity.editorterminal/blob/main/LICENSE.md",
+  "changelogUrl": "https://github.com/BelicusBr/com.cobilas.unity.editorterminal/blob/main/CHANGELOG.md",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BelicusBr/com.cobilas.unity.editorterminal.git"
+  },
+  "keywords": [
+    "unity3d",
+    "csharp",
+    "unity-csharp",
+    "unity-terminal",
+    "terminal",
+    "unity2017"
+  ],
+  "author": "BelicusBr",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/BelicusBr/com.cobilas.unity.editorterminal/issues"
+  },
+  "homepage": "https://github.com/BelicusBr/com.cobilas.unity.editorterminal#readme",
+  "displayName": "Unity editor terminal",
+  "type": "tool",
+  "unity": "2017.4"
+}
