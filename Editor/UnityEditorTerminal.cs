@@ -2,28 +2,51 @@
 using UnityEngine;
 using UnityEditor;
 using System.Diagnostics;
+using System.Threading.Tasks;
 
 namespace Cobilas.Unity.Editor.Terminal {
     public class UnityEditorTerminal : EditorWindow {
+
+        private readonly static string[] terminals = {
+            "CMD", "PowerShell", "MacOS Terminal", "GNOME Terminal"
+        };
 
         [MenuItem("Window/UE-Terminal")]
         private static void Init() {
             UnityEditorTerminal window = GetWindow<UnityEditorTerminal>();
             window.WorkingDirectory = Path.GetDirectoryName(Application.dataPath);
+            window.titleContent = new GUIContent("Unity Editor Terminal");
             window.Show();
         }
 
-        private TextEditor textEditor = new TextEditor();
+        private Task myTask;
         private string saida;
         private string saida2;
-        [SerializeField] private bool setWorkingDirectory;
+        private GUIStyle style;
+        private Rect scrollViewRect;
+        [SerializeField] private float value;
+        [SerializeField] private int selectTerminal;
+        private Vector2 scrollPosition = Vector2.zero;
+        [SerializeField] private float terminal_Height;
+        private TextEditor textEditor = new TextEditor();
         [SerializeField] private string WorkingDirectory;
+        private GUIContent contentTemp = new GUIContent();
+        [SerializeField] private bool setWorkingDirectory;
 
         private void OnEnable() {
+            style = null;
             saida2 = (string)(saida = ">").Clone();
         }
 
         private void OnGUI() {
+            Event @event = Event.current;
+            if (style is null) {
+                style = new GUIStyle(GUI.skin.box);
+                style.alignment = TextAnchor.UpperLeft;
+            }
+
+            contentTemp.text = saida2;
+
             EditorGUILayout.BeginHorizontal();
             if (setWorkingDirectory = GUILayout.Toggle(setWorkingDirectory, "Set", GUI.skin.button, GUILayout.Width(50f))) {
                 WorkingDirectory = EditorGUILayout.TextField("WorkingDirectory", WorkingDirectory);
@@ -31,24 +54,51 @@ namespace Cobilas.Unity.Editor.Terminal {
                     WorkingDirectory = Path.GetDirectoryName(Application.dataPath);
             } else EditorGUILayout.LabelField($"WorkingDirectory: {WorkingDirectory}", EditorStyles.boldLabel);
             EditorGUILayout.EndHorizontal();
+            selectTerminal = EditorGUILayout.Popup("Terminals", selectTerminal, terminals);
 
-            Rect rect = EditorGUILayout.GetControlRect(true, GUILayout.ExpandHeight(true));
-            Event @event = Event.current;
+
+            scrollPosition = EditorGUILayout.BeginScrollView(scrollPosition);
+            Rect rect = EditorGUILayout.GetControlRect(GUILayout.Height(terminal_Height));
+            
+            if (@event.type == EventType.Repaint) {
+                Vector2 textSize = style.CalcSize(contentTemp);
+                terminal_Height = textSize.y < scrollViewRect.height ? scrollViewRect.height -4f : textSize.y;
+            }
 
             if (@event.type == EventType.KeyDown)
                 if (@event.keyCode == KeyCode.Return) {
-                    CallCMD(saida2.Replace(saida, string.Empty));
+                    //CallCMD(saida2.Replace(saida, string.Empty), selectTerminal);
+                    myTask = Task.Run(() => CallCMD(saida2.Replace(saida, string.Empty), selectTerminal));
                     @event.Use();
+                    Repaint();
                 }
-
-            saida2 = DrawTextArea(rect, saida2, saida, @event, GUIUtility.GetControlID(FocusType.Keyboard));
+            bool oldEnabled = GUI.enabled;
+            GUI.enabled = IsCompletedMyTask();
+            saida2 = DrawTextArea(rect, saida2, saida, @event, textEditor, style, GUIUtility.GetControlID(FocusType.Keyboard));
+            GUI.enabled = oldEnabled;
+            EditorGUILayout.EndScrollView();
+            if (@event.type == EventType.Repaint)
+                scrollViewRect = GUILayoutUtility.GetLastRect();
         }
 
-        private void CallCMD(string arg) {
+        private void CallCMD(string arg, int _selectTerminal) {
             if (string.IsNullOrEmpty(arg))
                 return;
             Process process = new Process();
-            process.StartInfo = new ProcessStartInfo("cmd.exe", $"/c {arg}");
+            switch (_selectTerminal) {
+                case 0:
+                    process.StartInfo = new ProcessStartInfo("cmd.exe", $"/c {arg}");
+                    break;
+                case 1:
+                    process.StartInfo = new ProcessStartInfo("powershell.exe", arg);
+                    break;
+                case 2:
+                    process.StartInfo = new ProcessStartInfo("open", $"-a Terminal {arg}");
+                    break;
+                case 3:
+                    process.StartInfo = new ProcessStartInfo("gnome-terminal", arg);
+                    break;
+            }
             process.StartInfo.UseShellExecute = false;
             process.StartInfo.RedirectStandardOutput =
                 process.StartInfo.RedirectStandardError =
@@ -61,14 +111,19 @@ namespace Cobilas.Unity.Editor.Terminal {
             process.WaitForExit(); // Aguarda o término do processo
 
             process.Close();
+            myTask.Dispose();
+            myTask = null;
         }
 
-        private string DrawTextArea(Rect rect, string text, string defaulttext, Event @event, int ID) {
+        private bool IsCompletedMyTask()
+            => myTask == null || myTask.IsCompleted;
+
+        private string DrawTextArea(Rect rect, string text, string defaulttext, Event @event, TextEditor textEditor, GUIStyle style, int ID) {
             textEditor.text = text;
             textEditor.SaveBackup();
             textEditor.controlID = ID;
             textEditor.position = rect;
-            textEditor.style = GUI.skin.textArea;
+            textEditor.style = style;
             textEditor.multiline = true;
             textEditor.isPasswordField = false;
             textEditor.DetectFocusChange();
@@ -209,16 +264,18 @@ namespace Cobilas.Unity.Editor.Terminal {
                     else textEditor.DrawCursor(textEditor.text);
                     break;
             }
-            if (textEditor.text.Length <= defaulttext.Length) {
-                textEditor.cursorIndex =
-                    textEditor.selectIndex =
-                    defaulttext.Length;
-                return defaulttext;
+            if (isHover) {
+                if (textEditor.text.Length <= defaulttext.Length) {
+                    textEditor.cursorIndex =
+                        textEditor.selectIndex =
+                        defaulttext.Length;
+                    return defaulttext;
+                }
+                if (textEditor.cursorIndex < defaulttext.Length)
+                    textEditor.cursorIndex = defaulttext.Length;
+                if (textEditor.selectIndex < defaulttext.Length)
+                    textEditor.selectIndex = defaulttext.Length;
             }
-            if (textEditor.cursorIndex < defaulttext.Length)
-                textEditor.cursorIndex = defaulttext.Length;
-            if (textEditor.selectIndex < defaulttext.Length)
-                textEditor.selectIndex = defaulttext.Length;
 
             textEditor.UpdateScrollOffsetIfNeeded(@event);
             return textEditor.text;
