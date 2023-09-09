@@ -1,11 +1,14 @@
 ﻿using System.IO;
 using UnityEngine;
 using UnityEditor;
+using System.Text;
 using System.Diagnostics;
 using System.Threading.Tasks;
 
 namespace Cobilas.Unity.Editor.Terminal {
     public class UnityEditorTerminal : EditorWindow {
+
+        private static TerminalTask terminalTask = new TerminalTask();
 
         private readonly static string[] terminals = {
             "CMD", "PowerShell", "MacOS Terminal", "GNOME Terminal"
@@ -19,7 +22,11 @@ namespace Cobilas.Unity.Editor.Terminal {
             window.Show();
         }
 
-        private Task myTask;
+        [InitializeOnLoadMethod]
+        private static void Init_Funcs() {
+            EditorApplication.update += terminalTask.Update;
+        }
+
         private string saida;
         private string saida2;
         private GUIStyle style;
@@ -62,61 +69,24 @@ namespace Cobilas.Unity.Editor.Terminal {
             
             if (@event.type == EventType.Repaint) {
                 Vector2 textSize = style.CalcSize(contentTemp);
-                terminal_Height = textSize.y < scrollViewRect.height ? scrollViewRect.height -4f : textSize.y;
+                terminal_Height = textSize.y;// < scrollViewRect.height ? scrollViewRect.height -4f : textSize.y;
             }
 
             if (@event.type == EventType.KeyDown)
                 if (@event.keyCode == KeyCode.Return) {
-                    //CallCMD(saida2.Replace(saida, string.Empty), selectTerminal);
-                    myTask = Task.Run(() => CallCMD(saida2.Replace(saida, string.Empty), selectTerminal));
+                    terminalTask.terminal = this;
+                    terminalTask.OpenTerminal();
                     @event.Use();
-                    Repaint();
                 }
+
             bool oldEnabled = GUI.enabled;
-            GUI.enabled = IsCompletedMyTask();
+            GUI.enabled = terminalTask.IsCompleted;
             saida2 = DrawTextArea(rect, saida2, saida, @event, textEditor, style, GUIUtility.GetControlID(FocusType.Keyboard));
             GUI.enabled = oldEnabled;
             EditorGUILayout.EndScrollView();
             if (@event.type == EventType.Repaint)
                 scrollViewRect = GUILayoutUtility.GetLastRect();
         }
-
-        private void CallCMD(string arg, int _selectTerminal) {
-            if (string.IsNullOrEmpty(arg))
-                return;
-            Process process = new Process();
-            switch (_selectTerminal) {
-                case 0:
-                    process.StartInfo = new ProcessStartInfo("cmd.exe", $"/c {arg}");
-                    break;
-                case 1:
-                    process.StartInfo = new ProcessStartInfo("powershell.exe", arg);
-                    break;
-                case 2:
-                    process.StartInfo = new ProcessStartInfo("open", $"-a Terminal {arg}");
-                    break;
-                case 3:
-                    process.StartInfo = new ProcessStartInfo("gnome-terminal", arg);
-                    break;
-            }
-            process.StartInfo.UseShellExecute = false;
-            process.StartInfo.RedirectStandardOutput =
-                process.StartInfo.RedirectStandardError =
-                process.StartInfo.CreateNoWindow = true;
-            process.StartInfo.WorkingDirectory = WorkingDirectory;
-
-            process.Start();
-            saida2 = (string)(saida = process.StandardOutput.ReadToEnd() + 
-                process.StandardError.ReadToEnd() + ">").Clone();
-            process.WaitForExit(); // Aguarda o término do processo
-
-            process.Close();
-            myTask.Dispose();
-            myTask = null;
-        }
-
-        private bool IsCompletedMyTask()
-            => myTask == null || myTask.IsCompleted;
 
         private string DrawTextArea(Rect rect, string text, string defaulttext, Event @event, TextEditor textEditor, GUIStyle style, int ID) {
             textEditor.text = text;
@@ -264,21 +234,100 @@ namespace Cobilas.Unity.Editor.Terminal {
                     else textEditor.DrawCursor(textEditor.text);
                     break;
             }
-            if (isHover) {
-                if (textEditor.text.Length <= defaulttext.Length) {
-                    textEditor.cursorIndex =
-                        textEditor.selectIndex =
-                        defaulttext.Length;
-                    return defaulttext;
-                }
-                if (textEditor.cursorIndex < defaulttext.Length)
-                    textEditor.cursorIndex = defaulttext.Length;
-                if (textEditor.selectIndex < defaulttext.Length)
-                    textEditor.selectIndex = defaulttext.Length;
-            }
+
+            if (textEditor.cursorIndex < defaulttext.Length)
+                textEditor.cursorIndex = defaulttext.Length;
+            if (textEditor.selectIndex < defaulttext.Length)
+                textEditor.selectIndex = defaulttext.Length;
+            if (textEditor.text.Length <= defaulttext.Length)
+                return defaulttext;
+
+            UnityEngine.Debug.Log($"{textEditor.cursorIndex}|{textEditor.selectIndex}|{defaulttext.Length}");
 
             textEditor.UpdateScrollOffsetIfNeeded(@event);
             return textEditor.text;
+        }
+
+        private sealed class TerminalTask {
+            public int timer;
+            public Task myTask;
+            public Process process;
+            public StringBuilder builder;
+            public UnityEditorTerminal terminal;
+
+            public bool IsCompleted => myTask is null;
+
+            public void OpenTerminal() {
+                builder = new StringBuilder();
+                switch (terminal.selectTerminal) {
+                    case 0:
+                        //process.StartInfo = new ProcessStartInfo("cmd.exe", $"/c {arg}");
+                        myTask = Task.Run(() => IOpenTerminal("cmd.exe", $"/c {terminal.saida2.Replace(terminal.saida, string.Empty)}", builder, terminal.WorkingDirectory));
+                        break;
+                    case 1:
+                        //process.StartInfo = new ProcessStartInfo("powershell.exe", arg);
+                        myTask = Task.Run(() => IOpenTerminal("powershell.exe", terminal.saida2.Replace(terminal.saida, string.Empty), builder, terminal.WorkingDirectory));
+                        break;
+                    case 2:
+                        //process.StartInfo = new ProcessStartInfo("open", $"-a Terminal {arg}");
+                        myTask = Task.Run(() => IOpenTerminal("open", $"-a Terminal  {terminal.saida2.Replace(terminal.saida, string.Empty)}", builder, terminal.WorkingDirectory));
+                        break;
+                    case 3:
+                        //process.StartInfo = new ProcessStartInfo("gnome-terminal", arg);
+                        myTask = Task.Run(() => IOpenTerminal("gnome-terminal", terminal.saida2.Replace(terminal.saida, string.Empty), builder, terminal.WorkingDirectory));
+                        break;
+                }
+            }
+
+            private void IOpenTerminal(string fileName, string arg, StringBuilder builder, string wd) {
+                try {
+                    process = new Process();
+                    process.StartInfo = new ProcessStartInfo(fileName, arg);
+                    process.StartInfo.WorkingDirectory = wd;
+                    process.StartInfo.UseShellExecute = false;
+                    process.StartInfo.RedirectStandardOutput =
+                        process.StartInfo.RedirectStandardError =
+                        process.StartInfo.CreateNoWindow = true;
+
+                    process.OutputDataReceived += (arg1, arg2) => {
+                        if (!string.IsNullOrEmpty(arg2.Data))
+                            builder.AppendLine(arg2.Data);
+                    };
+                    process.ErrorDataReceived += (arg1, arg2) => {
+                        if (!string.IsNullOrEmpty(arg2.Data))
+                            builder.AppendLine(arg2.Data);
+                    };
+
+                    process.Start();
+
+                    process.BeginOutputReadLine();
+                    process.BeginErrorReadLine();
+
+                    process.WaitForExit();
+
+                    process.Close();
+                } catch (System.Exception e) {
+                    UnityEngine.Debug.LogException(e);
+                }
+            }
+
+            public void Update() {
+                if (myTask is null) return;
+                if (myTask.IsCompleted || myTask.IsFaulted) {
+                    terminal.Repaint();
+                    process.Dispose();
+                    process = null;
+                    myTask.Dispose();
+                    myTask = null;
+                    terminal.saida2 = (string)(terminal.saida = builder.ToString() + ">").Clone();
+                    return;
+                }
+                if (++timer == 30) {
+                    timer = 0;
+                    terminal.saida2 = builder.ToString();
+                    terminal.Repaint();
+                }
+            }
         }
     }
 }
