@@ -1,6 +1,6 @@
 {
   "name": "com.cobilas.unity.editorterminal",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Pacote para unity3d que adiciona um terminal.",
   "displayName": "Unity Editor Terminal",
   "type": "tool",
