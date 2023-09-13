@@ -14,7 +14,7 @@ namespace Cobilas.Unity.Editor.Terminal {
             "CMD", "PowerShell", "MacOS Terminal", "GNOME Terminal"
         };
 
-        [MenuItem("Window/UE-Terminal")]
+        //[MenuItem("Window/UE-Terminal")]
         private static void Init() {
             UnityEditorTerminal window = GetWindow<UnityEditorTerminal>();
             window.WorkingDirectory = Path.GetDirectoryName(Application.dataPath);
