@@ -16,6 +16,8 @@ namespace Cobilas.Unity.Editor.Terminal {
         [SerializeField] private string tabName;
         [SerializeField] private string workingDirectory;
 
+        public string TabName => tabName;
+
         public TerminalTab(string tabName, string workingDirectory) {
             text = ">";
             applayCommand = false;
