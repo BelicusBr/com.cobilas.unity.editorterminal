@@ -10,7 +10,7 @@ namespace Cobilas.Unity.Editor.Terminal {
             "CMD", "PowerShell", "MacOS Terminal", "GNOME Terminal"
         };
 
-        [MenuItem("Window/UE-Terminal")]
+        [MenuItem("Window/UE-Terminal-Test")]
         private static void Init() {
             UnityEditorTerminal window = GetWindow<UnityEditorTerminal>();
             window.titleContent = new GUIContent("Unity Editor Terminal");
