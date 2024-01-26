@@ -2,6 +2,7 @@
 /uet -v > versão
 /uet -s -n "new tab" > renomear aba
 /uet -s -wd "C:/Path1" > mudar workingDirectory
+/uet -s -tc > definir template de console
 /uet -a "new tab" > adicionar nova aba
 
 exp
